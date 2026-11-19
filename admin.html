@@ -29,13 +29,25 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 .tabButton.active{background:#8b5cf6}
 .usageGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:18px}
 .usageBox{background:#222231;border:1px solid #39394c;padding:18px;border-radius:12px}
-.usageValue{font-size:23px;font-weight:bold;color:#c4b5fd;margin-top:10px}
+.usageValue{font-size:23px;font-weight:bold;color:#c4b5fd;margin-top:10px;overflow-wrap:anywhere}
 .usageLabel{font-size:13px;color:#aaa}
 .analyticsGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:15px}
 .analyticsBox{background:#222231;border:1px solid #39394c;padding:18px;border-radius:12px}
 .analyticsValue{font-size:28px;font-weight:bold;color:#c4b5fd;margin-top:8px}
 .analyticsLabel{font-size:13px;color:#aaa}
 .searchInput{margin-top:12px}
+
+.quotaBox{background:#222231;border:1px solid #39394c;padding:18px;border-radius:14px;margin:14px 0}
+.quotaTop{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.quotaTitle{font-size:17px;font-weight:bold}
+.quotaPercent{font-weight:bold;color:#c4b5fd}
+.progressTrack{height:13px;background:#11111a;border-radius:20px;overflow:hidden;margin:16px 0 10px}
+.progressFill{height:100%;width:0;background:#8b5cf6;border-radius:20px;transition:width .3s}
+.quotaDetails{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px;color:#aaa}
+.quotaStatus{margin-top:14px;padding:12px;border-radius:9px;font-size:13px;background:#173528;color:#86efac}
+.quotaStatus.warning{background:#493817;color:#fcd34d}
+.quotaStatus.critical{background:#4b2028;color:#fca5a5}
+.usageNote{font-size:12px;color:#999;line-height:1.6;margin-top:14px}
 </style>
 </head>
 
@@ -73,12 +85,10 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 <div class="analyticsLabel">Total Clients</div>
 <div class="analyticsValue" id="totalCount">0</div>
 </div>
-
 <div class="analyticsBox">
 <div class="analyticsLabel">Active Clients</div>
 <div class="analyticsValue" id="activeCount">0</div>
 </div>
-
 <div class="analyticsBox">
 <div class="analyticsLabel">Inactive Clients</div>
 <div class="analyticsValue" id="inactiveCount">0</div>
@@ -133,6 +143,12 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 
 <button onclick="loadUsage()">Refresh Usage</button>
 <p class="muted" id="usageUpdated"></p>
+
+<p class="usageNote">
+Usage figures are estimates from this project's database and storage objects.
+Storage quota is shared across projects in your Supabase organization.
+For official quota and billing figures, check Supabase Dashboard → Usage.
+</p>
 </div>
 
 </div>
@@ -145,6 +161,9 @@ const SUPABASE_URL = "https://tmiebdqmygdfdgkvswta.supabase.co";
 const SUPABASE_KEY = "sb_publishable_t3KMHuJVyAJbJtDQV3bLIA_SSjpFGd4";
 
 const db = window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+const DATABASE_LIMIT = 500 * 1024 * 1024;
+const STORAGE_LIMIT = 1024 * 1024 * 1024;
 
 let editingId = null;
 let existingLogoUrl = null;
@@ -168,9 +187,93 @@ function showTab(tab){
  document.getElementById("dashboardButton").classList.toggle("active",tab==="dashboardTab");
  document.getElementById("usageButton").classList.toggle("active",tab==="usageTab");
 
- if(tab==="usageTab"){
-  loadUsage();
+ if(tab==="usageTab")loadUsage();
+}
+
+function createQuotaCard(title,used,limit){
+ used=Math.max(0,Number(used)||0);
+
+ const percent=(used/limit)*100;
+ const safePercent=Math.min(100,percent);
+ const remaining=Math.max(0,limit-used);
+
+ let statusText="Usage is within normal range.";
+ let statusClass="";
+ let barColor="#8b5cf6";
+
+ if(percent>=90){
+  statusText="CRITICAL: Usage has reached 90% or more. Check your quota soon.";
+  statusClass="critical";
+  barColor="#ef4444";
+ }else if(percent>=80){
+  statusText="WARNING: Usage has reached 80%. Keep an eye on your usage.";
+  statusClass="warning";
+  barColor="#f59e0b";
  }
+
+ const wrapper=document.createElement("div");
+ wrapper.className="quotaBox";
+
+ const top=document.createElement("div");
+ top.className="quotaTop";
+
+ const heading=document.createElement("div");
+ heading.className="quotaTitle";
+ heading.textContent=title;
+
+ const percentage=document.createElement("div");
+ percentage.className="quotaPercent";
+ percentage.textContent=percent.toFixed(1)+"% used";
+
+ top.append(heading,percentage);
+
+ const track=document.createElement("div");
+ track.className="progressTrack";
+
+ const fill=document.createElement("div");
+ fill.className="progressFill";
+ fill.style.width=safePercent+"%";
+ fill.style.background=barColor;
+ track.appendChild(fill);
+
+ const details=document.createElement("div");
+ details.className="quotaDetails";
+
+ const usedText=document.createElement("span");
+ usedText.textContent="Used: "+formatBytes(used);
+
+ const remainingText=document.createElement("span");
+ remainingText.textContent="Remaining: "+formatBytes(remaining);
+
+ details.append(usedText,remainingText);
+
+ const limitText=document.createElement("p");
+ limitText.className="muted";
+ limitText.textContent="Estimated limit: "+formatBytes(limit);
+
+ const status=document.createElement("div");
+ status.className="quotaStatus "+statusClass;
+ status.textContent=statusText;
+
+ wrapper.append(top,track,details,limitText,status);
+
+ return wrapper;
+}
+
+function addUsageStat(grid,labelText,valueText){
+ const card=document.createElement("div");
+ card.className="usageBox";
+
+ const label=document.createElement("div");
+ label.className="usageLabel";
+ label.textContent=labelText;
+
+ const value=document.createElement("div");
+ value.className="usageValue";
+ value.textContent=valueText;
+
+ card.append(label,value);
+ grid.appendChild(card);
 }
 
 async function loadUsage(){
@@ -196,34 +299,31 @@ async function loadUsage(){
 
  box.replaceChildren();
 
+ const databaseBytes=Number(usage.database_bytes)||0;
+ const storageBytes=Number(usage.storage_bytes)||0;
+ const logoBytes=Number(usage.logo_storage_bytes)||0;
+
+ box.appendChild(
+  createQuotaCard("Database Usage",databaseBytes,DATABASE_LIMIT)
+ );
+
+ box.appendChild(
+  createQuotaCard("Storage Usage (This Project)",storageBytes,STORAGE_LIMIT)
+ );
+
  const grid=document.createElement("div");
  grid.className="usageGrid";
 
- const stats=[
-  ["Database Size",formatBytes(usage.database_bytes)],
-  ["Logo Storage Used",formatBytes(usage.logo_storage_bytes)],
-  ["Logo Files",Number(usage.logo_files)||0],
-  ["Total Clients",Number(usage.total_clients)||0],
-  ["Active Clients",Number(usage.active_clients)||0]
- ];
-
- stats.forEach(stat=>{
-  const card=document.createElement("div");
-  card.className="usageBox";
-
-  const label=document.createElement("div");
-  label.className="usageLabel";
-  label.textContent=stat[0];
-
-  const value=document.createElement("div");
-  value.className="usageValue";
-  value.textContent=stat[1];
-
-  card.append(label,value);
-  grid.appendChild(card);
- });
+ addUsageStat(grid,"Database Size",formatBytes(databaseBytes));
+ addUsageStat(grid,"Total Storage Used",formatBytes(storageBytes));
+ addUsageStat(grid,"Logo Storage Used",formatBytes(logoBytes));
+ addUsageStat(grid,"Logo Files",Number(usage.logo_files)||0);
+ addUsageStat(grid,"Total Storage Files",Number(usage.storage_files)||0);
+ addUsageStat(grid,"Total Clients",Number(usage.total_clients)||0);
+ addUsageStat(grid,"Active Clients",Number(usage.active_clients)||0);
 
  box.appendChild(grid);
+
  updated.textContent="Last refreshed: "+new Date().toLocaleString();
 }
 
