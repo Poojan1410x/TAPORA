@@ -31,6 +31,11 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 .usageBox{background:#222231;border:1px solid #39394c;padding:18px;border-radius:12px}
 .usageValue{font-size:23px;font-weight:bold;color:#c4b5fd;margin-top:10px}
 .usageLabel{font-size:13px;color:#aaa}
+.analyticsGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:15px}
+.analyticsBox{background:#222231;border:1px solid #39394c;padding:18px;border-radius:12px}
+.analyticsValue{font-size:28px;font-weight:bold;color:#c4b5fd;margin-top:8px}
+.analyticsLabel{font-size:13px;color:#aaa}
+.searchInput{margin-top:12px}
 </style>
 </head>
 
@@ -62,6 +67,23 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 <div class="card">
 <h2>Dashboard</h2>
 <p>Manage your business clients</p>
+
+<div class="analyticsGrid">
+<div class="analyticsBox">
+<div class="analyticsLabel">Total Clients</div>
+<div class="analyticsValue" id="totalCount">0</div>
+</div>
+
+<div class="analyticsBox">
+<div class="analyticsLabel">Active Clients</div>
+<div class="analyticsValue" id="activeCount">0</div>
+</div>
+
+<div class="analyticsBox">
+<div class="analyticsLabel">Inactive Clients</div>
+<div class="analyticsValue" id="inactiveCount">0</div>
+</div>
+</div>
 </div>
 
 <div class="card">
@@ -86,6 +108,16 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 
 <div class="card">
 <h2>All Clients</h2>
+
+<input
+ id="clientSearch"
+ class="searchInput"
+ type="search"
+ placeholder="Search business name or slug..."
+ oninput="renderClients()"
+>
+
+<p class="muted" id="searchCount"></p>
 <div id="clients">Loading...</div>
 </div>
 
@@ -116,6 +148,7 @@ const db = window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 let editingId = null;
 let existingLogoUrl = null;
+let allClients = [];
 
 function formatBytes(bytes){
  bytes=Number(bytes)||0;
@@ -167,7 +200,7 @@ async function loadUsage(){
  grid.className="usageGrid";
 
  const stats=[
-  ["Database Used",formatBytes(usage.database_bytes)],
+  ["Database Size",formatBytes(usage.database_bytes)],
   ["Logo Storage Used",formatBytes(usage.logo_storage_bytes)],
   ["Logo Files",Number(usage.logo_files)||0],
   ["Total Clients",Number(usage.total_clients)||0],
@@ -191,7 +224,6 @@ async function loadUsage(){
  });
 
  box.appendChild(grid);
-
  updated.textContent="Last refreshed: "+new Date().toLocaleString();
 }
 
@@ -268,14 +300,38 @@ async function loadClients(){
   return;
  }
 
+ allClients=data||[];
+ renderClients();
+}
+
+function renderClients(){
+ const box=document.getElementById("clients");
+ const search=document.getElementById("clientSearch").value.trim().toLowerCase();
+
+ const total=allClients.length;
+ const active=allClients.filter(c=>c.active).length;
+ const inactive=total-active;
+
+ document.getElementById("totalCount").textContent=total;
+ document.getElementById("activeCount").textContent=active;
+ document.getElementById("inactiveCount").textContent=inactive;
+
+ const filtered=allClients.filter(c=>
+  (c.business_name||"").toLowerCase().includes(search) ||
+  (c.slug||"").toLowerCase().includes(search)
+ );
+
+ document.getElementById("searchCount").textContent=
+  "Showing "+filtered.length+" of "+total+" clients";
+
  box.replaceChildren();
 
- if(!data.length){
-  box.textContent="No clients added yet.";
+ if(!filtered.length){
+  box.textContent=total?"No matching clients found.":"No clients added yet.";
   return;
  }
 
- data.forEach(c=>{
+ filtered.forEach(c=>{
   const item=document.createElement("div");
   item.className="client";
 
