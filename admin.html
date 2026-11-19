@@ -25,6 +25,12 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 #dashboard{display:none}
 #status{color:#c4b5fd}
 .logoPreview{max-width:120px;max-height:100px;object-fit:contain;background:white;padding:8px;border-radius:10px;margin:10px 0}
+.tabButton{background:#29243b}
+.tabButton.active{background:#8b5cf6}
+.usageGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:18px}
+.usageBox{background:#222231;border:1px solid #39394c;padding:18px;border-radius:12px}
+.usageValue{font-size:23px;font-weight:bold;color:#c4b5fd;margin-top:10px}
+.usageLabel{font-size:13px;color:#aaa}
 </style>
 </head>
 
@@ -45,9 +51,17 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 <div id="dashboard">
 
 <div class="card">
+<h2>Admin Menu</h2>
+<button class="tabButton active" id="dashboardButton" onclick="showTab('dashboardTab')">Dashboard</button>
+<button class="tabButton" id="usageButton" onclick="showTab('usageTab')">Manage Usage</button>
+<button class="danger" onclick="logout()">Logout</button>
+</div>
+
+<div id="dashboardTab">
+
+<div class="card">
 <h2>Dashboard</h2>
 <p>Manage your business clients</p>
-<button class="danger" onclick="logout()">Logout</button>
 </div>
 
 <div class="card">
@@ -76,6 +90,22 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 </div>
 
 </div>
+
+<div id="usageTab" style="display:none">
+
+<div class="card">
+<h2>Manage Usage</h2>
+<p class="muted">TAPORA database and storage monitor</p>
+
+<div id="usageData">Press Refresh Usage to load data.</div>
+
+<button onclick="loadUsage()">Refresh Usage</button>
+<p class="muted" id="usageUpdated"></p>
+</div>
+
+</div>
+
+</div>
 </div>
 
 <script>
@@ -86,6 +116,84 @@ const db = window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 let editingId = null;
 let existingLogoUrl = null;
+
+function formatBytes(bytes){
+ bytes=Number(bytes)||0;
+ if(bytes===0)return "0 Bytes";
+ const units=["Bytes","KB","MB","GB","TB"];
+ const i=Math.floor(Math.log(bytes)/Math.log(1024));
+ return (bytes/Math.pow(1024,i)).toFixed(2)+" "+units[i];
+}
+
+function showTab(tab){
+ const dashboardTab=document.getElementById("dashboardTab");
+ const usageTab=document.getElementById("usageTab");
+
+ dashboardTab.style.display=tab==="dashboardTab"?"block":"none";
+ usageTab.style.display=tab==="usageTab"?"block":"none";
+
+ document.getElementById("dashboardButton").classList.toggle("active",tab==="dashboardTab");
+ document.getElementById("usageButton").classList.toggle("active",tab==="usageTab");
+
+ if(tab==="usageTab"){
+  loadUsage();
+ }
+}
+
+async function loadUsage(){
+ const box=document.getElementById("usageData");
+ const updated=document.getElementById("usageUpdated");
+
+ box.textContent="Loading usage data...";
+ updated.textContent="";
+
+ const {data,error}=await db.rpc("get_tapora_usage");
+
+ if(error){
+  box.textContent="Usage error: "+error.message;
+  return;
+ }
+
+ const usage=Array.isArray(data)?data[0]:data;
+
+ if(!usage){
+  box.textContent="No usage data received.";
+  return;
+ }
+
+ box.replaceChildren();
+
+ const grid=document.createElement("div");
+ grid.className="usageGrid";
+
+ const stats=[
+  ["Database Used",formatBytes(usage.database_bytes)],
+  ["Logo Storage Used",formatBytes(usage.logo_storage_bytes)],
+  ["Logo Files",Number(usage.logo_files)||0],
+  ["Total Clients",Number(usage.total_clients)||0],
+  ["Active Clients",Number(usage.active_clients)||0]
+ ];
+
+ stats.forEach(stat=>{
+  const card=document.createElement("div");
+  card.className="usageBox";
+
+  const label=document.createElement("div");
+  label.className="usageLabel";
+  label.textContent=stat[0];
+
+  const value=document.createElement("div");
+  value.className="usageValue";
+  value.textContent=stat[1];
+
+  card.append(label,value);
+  grid.appendChild(card);
+ });
+
+ box.appendChild(grid);
+
+ updated.textContent="Last refreshed: "+new Date().toLocaleString();
+}
 
 async function login(){
  const email=document.getElementById("email").value.trim();
@@ -327,6 +435,7 @@ function editClient(c){
  document.getElementById("formTitle").textContent="Edit Client";
  document.getElementById("status").textContent="Editing "+c.business_name;
 
+ showTab("dashboardTab");
  window.scrollTo({top:0,behavior:"smooth"});
 }
 
