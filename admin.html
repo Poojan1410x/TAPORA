@@ -1,1 +1,232 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TAPORA Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#090812;color:white;font-family:Arial,sans-serif;padding:20px}
+.wrap{max-width:850px;margin:30px auto}
+h1{letter-spacing:3px}h1 span{color:#a78bfa}
+.card{background:#171323;border:1px solid #39304e;border-radius:18px;padding:22px;margin:18px 0}
+input{width:100%;padding:14px;margin:8px 0 15px;border:1px solid #51436f;border-radius:10px;background:#0d0b16;color:white;font-size:15px}
+button{padding:13px 17px;border:0;border-radius:10px;background:#8b5cf6;color:white;font-weight:bold;margin:5px;cursor:pointer}
+.secondary{background:#39304e}
+.danger{background:#9f303e}
+small,.muted{color:#aaa}
+.client{padding:16px 0;border-bottom:1px solid #39304e}
+.client:last-child{border:0}
+#dashboard{display:none}
+#status{color:#c4b5fd;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>TAP<span>ORA</span></h1>
+<p class="muted">ADMIN CONTROL PANEL</p>
+
+<div class="card" id="login">
+<h2>Admin Login</h2>
+<input id="email" type="email" placeholder="Admin email">
+<input id="password" type="password" placeholder="Password">
+<button onclick="login()">Login →</button>
+</div>
+
+<div id="dashboard">
+<div class="card">
+<h2>Dashboard</h2>
+<p class="muted">Manage your business clients</p>
+<button class="secondary" onclick="logout()">Logout</button>
+</div>
+
+<div class="card">
+<h2 id="formTitle">Add New Client</h2>
+<input id="business" placeholder="Business name">
+<input id="slug" placeholder="Unique link name (example: cafe-one)">
+<input id="upi" placeholder="Business UPI ID">
+<button onclick="saveClient()">Save Client</button>
+<button class="secondary" onclick="resetForm()">Clear</button>
+<p id="status"></p>
+</div>
+
+<div class="card">
+<h2>All Clients</h2>
+<div id="clients">Loading...</div>
+</div>
+</div>
+</div>
+
+<script>
+const db = window.supabase.createClient(
+ "https://tmiebdqmygdfdgkvswta.supabase.co",
+ "sb_publishable_t3KMHuJVyAJbJtDQV3bLIA_SSjpFGd4"
+);
+
+let editingId = null;
+
+async function login(){
+ const email = document.getElementById("email").value.trim();
+ const password = document.getElementById("password").value;
+
+ const {error} = await db.auth.signInWithPassword({email,password});
+
+ if(error){
+  alert("Login failed: " + error.message);
+  return;
+ }
+ await checkSession();
+}
+
+async function logout(){
+ await db.auth.signOut();
+ location.reload();
+}
+
+async function checkSession(){
+ const {data:{session}} = await db.auth.getSession();
+
+ if(!session){
+  document.getElementById("login").style.display="block";
+  document.getElementById("dashboard").style.display="none";
+  return;
+ }
+
+ document.getElementById("login").style.display="none";
+ document.getElementById("dashboard").style.display="block";
+ loadClients();
+}
+
+async function loadClients(){
+ const box = document.getElementById("clients");
+ box.textContent="Loading...";
+
+ const {data,error} = await db.from("clients")
+  .select("id,business_name,slug,upi_id,active")
+  .order("created_at",{ascending:false});
+
+ if(error){
+  box.textContent="Error: "+error.message;
+  return;
+ }
+
+ box.innerHTML="";
+
+ if(!data.length){
+  box.textContent="No clients added yet.";
+  return;
+ }
+
+ data.forEach(c=>{
+  const item=document.createElement("div");
+  item.className="client";
+
+  const title=document.createElement("strong");
+  title.textContent=c.business_name;
+
+  const details=document.createElement("p");
+  details.className="muted";
+  details.textContent="Link: /pay.html?client="+c.slug+
+   " | UPI: "+c.upi_id+" | "+(c.active?"Active":"Inactive");
+
+  const edit=document.createElement("button");
+  edit.textContent="Edit";
+  edit.onclick=()=>editClient(c);
+
+  const toggle=document.createElement("button");
+  toggle.className="secondary";
+  toggle.textContent=c.active?"Deactivate":"Activate";
+  toggle.onclick=()=>toggleClient(c);
+
+  const del=document.createElement("button");
+  del.className="danger";
+  del.textContent="Delete";
+  del.onclick=()=>deleteClient(c.id);
+
+  item.append(title,details,edit,toggle,del);
+  box.appendChild(item);
+ });
+}
+
+async function saveClient(){
+ const business=document.getElementById("business").value.trim();
+ const slug=document.getElementById("slug").value.trim().toLowerCase();
+ const upi=document.getElementById("upi").value.trim();
+ const status=document.getElementById("status");
+
+ if(!business || !slug || !upi){
+  status.textContent="Please fill all fields.";
+  return;
+ }
+
+ if(!/^[a-z0-9-]+$/.test(slug)){
+  status.textContent="Use only lowercase letters, numbers and hyphens in link name.";
+  return;
+ }
+
+ const values={
+  business_name:business,
+  slug:slug,
+  upi_id:upi
+ };
+
+ const result=editingId
+  ? await db.from("clients").update(values).eq("id",editingId)
+  : await db.from("clients").insert(values);
+
+ if(result.error){
+  status.textContent="Error: "+result.error.message;
+  return;
+ }
+
+ status.textContent="Client saved successfully!";
+ resetForm();
+ loadClients();
+}
+
+function editClient(c){
+ editingId=c.id;
+ document.getElementById("business").value=c.business_name;
+ document.getElementById("slug").value=c.slug;
+ document.getElementById("upi").value=c.upi_id;
+ document.getElementById("formTitle").textContent="Edit Client";
+ document.getElementById("status").textContent="Editing "+c.business_name;
+ window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function resetForm(){
+ editingId=null;
+ document.getElementById("business").value="";
+ document.getElementById("slug").value="";
+ document.getElementById("upi").value="";
+ document.getElementById("formTitle").textContent="Add New Client";
+}
+
+async function toggleClient(c){
+ const {error}=await db.from("clients")
+  .update({active:!c.active}).eq("id",c.id);
+
+ if(error) alert(error.message);
+ else loadClients();
+}
+
+async function deleteClient(id){
+ if(!confirm("Delete this client permanently?")) return;
+
+ const {error}=await db.from("clients").delete().eq("id",id);
+
+ if(error) alert(error.message);
+ else loadClients();
+}
+
+db.auth.onAuthStateChange(()=>{
+ checkSession();
+});
+
+checkSession();
+</script>
+</body>
+</html>
+
