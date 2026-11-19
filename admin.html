@@ -3,67 +3,116 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TAPORA Admin</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
- <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#090812;color:white;font-family:Arial,sans-serif;padding:20px}
-.wrap{max-width:850px;margin:30px auto}
-h1{letter-spacing:3px}h1 span{color:#a78bfa}
-.card{background:#171323;border:1px solid #39304e;border-radius:18px;padding:22px;margin:18px 0}
-input{width:100%;padding:14px;margin:8px 0 15px;border:1px solid #51436f;border-radius:10px;background:#0d0b16;color:white;font-size:15px}
-button{padding:13px 17px;border:0;border-radius:10px;background:#8b5cf6;color:white;font-weight:bold;margin:5px;cursor:pointer}
-.secondary{background:#39304e}
-.danger{background:#9f303e}
-small,.muted{color:#aaa}
-.client{padding:16px 0;border-bottom:1px solid #39304e}
-.client:last-child{border:0}
+body{
+ margin:0;
+ padding:20px;
+ background:#09090f;
+ color:white;
+ font-family:Arial,sans-serif;
+}
+.container{max-width:850px;margin:auto}
+h1{color:#a78bfa}
+.card{
+ background:#171722;
+ border:1px solid #303044;
+ border-radius:16px;
+ padding:20px;
+ margin:18px 0;
+}
+input{
+ width:100%;
+ padding:14px;
+ margin:8px 0;
+ border-radius:9px;
+ border:1px solid #444;
+ background:#101018;
+ color:white;
+}
+button{
+ padding:11px 16px;
+ margin:5px 3px 5px 0;
+ border:0;
+ border-radius:8px;
+ background:#8b5cf6;
+ color:white;
+ font-weight:bold;
+}
+.secondary{background:#444}
+.danger{background:#dc3545}
+.client{
+ background:#222231;
+ padding:16px;
+ margin:14px 0;
+ border-radius:12px;
+ overflow-wrap:anywhere;
+}
+.muted{color:#aaa;font-size:13px}
 #dashboard{display:none}
-#status{color:#c4b5fd;white-space:pre-wrap}
+#status{color:#c4b5fd}
 </style>
 </head>
+
 <body>
-<div class="wrap">
-<h1>TAP<span>ORA</span></h1>
+<div class="container">
+
+<h1>TAPORA</h1>
 <p class="muted">ADMIN CONTROL PANEL</p>
 
-<div class="card" id="login">
+<div id="loginBox" class="card">
 <h2>Admin Login</h2>
-<input id="email" type="email" placeholder="Admin email">
+
+<input id="email" type="email" placeholder="Admin Email">
 <input id="password" type="password" placeholder="Password">
-<button onclick="login()">Login →</button>
+
+<button onclick="login()">Login</button>
+<p id="loginStatus"></p>
 </div>
 
 <div id="dashboard">
+
 <div class="card">
 <h2>Dashboard</h2>
-<p class="muted">Manage your business clients</p>
-<button class="secondary" onclick="logout()">Logout</button>
+<p>Manage your business clients</p>
+<button class="danger" onclick="logout()">Logout</button>
 </div>
 
 <div class="card">
 <h2 id="formTitle">Add New Client</h2>
-<input id="business" placeholder="Business name">
-<input id="slug" placeholder="Unique link name (example: cafe-one)">
-<input id="upi" placeholder="Business UPI ID">
+
+<input id="business" placeholder="Business Name">
+<input id="slug" placeholder="Unique Link Name (example: poojan)">
+<input id="upi" placeholder="UPI ID">
+
+<p id="status"></p>
+
 <button onclick="saveClient()">Save Client</button>
 <button class="secondary" onclick="resetForm()">Clear</button>
-<p id="status"></p>
 </div>
 
 <div class="card">
 <h2>All Clients</h2>
 <div id="clients">Loading...</div>
 </div>
+
 </div>
 </div>
 
 <script>
+const SUPABASE_URL = "https://tmiebdqmygdfdgkvswta.supabase.co";
+
+const SUPABASE_KEY = "sb_publishable_t3KMHuJVyAJbJtDQV3bLIA_SSjpFGd4";
+
 const db = window.supabase.createClient(
- "https://tmiebdqmygdfdgkvswta.supabase.co",
- "sb_publishable_t3KMHuJVyAJbJtDQV3bLIA_SSjpFGd4"
+ SUPABASE_URL,
+ SUPABASE_KEY
 );
 
 let editingId = null;
@@ -71,14 +120,24 @@ let editingId = null;
 async function login(){
  const email = document.getElementById("email").value.trim();
  const password = document.getElementById("password").value;
+ const status = document.getElementById("loginStatus");
 
- const {error} = await db.auth.signInWithPassword({email,password});
+ status.textContent = "Logging in...";
+
+ const {data,error} = await db.auth.signInWithPassword({
+  email,
+  password
+ });
 
  if(error){
-  alert("Login failed: " + error.message);
+  status.textContent = error.message;
   return;
  }
- await checkSession();
+
+ document.getElementById("loginBox").style.display = "none";
+ document.getElementById("dashboard").style.display = "block";
+
+ await loadClients();
 }
 
 async function logout(){
@@ -87,147 +146,178 @@ async function logout(){
 }
 
 async function checkSession(){
- const {data:{session}} = await db.auth.getSession();
+ const {data} = await db.auth.getSession();
 
- if(!session){
-  document.getElementById("login").style.display="block";
-  document.getElementById("dashboard").style.display="none";
-  return;
+ if(data.session){
+  document.getElementById("loginBox").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+  await loadClients();
  }
-
- document.getElementById("login").style.display="none";
- document.getElementById("dashboard").style.display="block";
- loadClients();
 }
 
 async function loadClients(){
  const box = document.getElementById("clients");
- box.textContent="Loading...";
+ box.textContent = "Loading...";
 
  const {data,error} = await db.from("clients")
   .select("id,business_name,slug,upi_id,active")
   .order("created_at",{ascending:false});
 
  if(error){
-  box.textContent="Error: "+error.message;
+  box.textContent = "Error: " + error.message;
   return;
  }
 
- box.innerHTML="";
+ box.replaceChildren();
 
  if(!data.length){
-  box.textContent="No clients added yet.";
+  box.textContent = "No clients added yet.";
   return;
  }
 
  data.forEach(c=>{
-  const item=document.createElement("div");
-  item.className="client";
+  const item = document.createElement("div");
+  item.className = "client";
 
-  const title=document.createElement("strong");
-  title.textContent=c.business_name;
+  const title = document.createElement("strong");
+  title.textContent = c.business_name;
 
-  const details=document.createElement("p");
-  details.className="muted";
-  details.textContent="Link: /pay.html?client="+c.slug+
-   " | UPI: "+c.upi_id+" | "+(c.active?"Active":"Inactive");
+  const link = "https://tapora.poojanmadhvani1.workers.dev/pay.html?client=" + encodeURIComponent(c.slug);
 
-  const edit=document.createElement("button");
-  edit.textContent="Edit";
-  edit.onclick=()=>editClient(c);
+  const details = document.createElement("p");
+  details.className = "muted";
+  details.textContent = "Link: " + link + " | UPI: " + c.upi_id + " | " + (c.active ? "Active" : "Inactive");
 
-  const toggle=document.createElement("button");
-  toggle.className="secondary";
-  toggle.textContent=c.active?"Deactivate":"Activate";
-  toggle.onclick=()=>toggleClient(c);
+  const qrBox = document.createElement("div");
+  qrBox.style.cssText = "background:white;padding:12px;width:184px;margin:12px 0;border-radius:12px";
 
-  const del=document.createElement("button");
-  del.className="danger";
-  del.textContent="Delete";
-  del.onclick=()=>deleteClient(c.id);
+  const qr = document.createElement("div");
+  qrBox.appendChild(qr);
 
-  item.append(title,details,edit,toggle,del);
+  new QRCode(qr,{
+   text:link,
+   width:160,
+   height:160,
+   colorDark:"#000000",
+   colorLight:"#ffffff",
+   correctLevel:QRCode.CorrectLevel.H
+  });
+
+  const download = document.createElement("button");
+  download.textContent = "Download QR";
+
+  download.onclick = ()=>{
+   const canvas = qr.querySelector("canvas");
+
+   if(!canvas){
+    alert("QR not ready");
+    return;
+   }
+
+   const a = document.createElement("a");
+   a.download = c.slug + "-tapora-qr.png";
+   a.href = canvas.toDataURL("image/png");
+   a.click();
+  };
+
+  const edit = document.createElement("button");
+  edit.textContent = "Edit";
+  edit.onclick = ()=>editClient(c);
+
+  const toggle = document.createElement("button");
+  toggle.className = "secondary";
+  toggle.textContent = c.active ? "Deactivate" : "Activate";
+  toggle.onclick = ()=>toggleClient(c);
+
+  const del = document.createElement("button");
+  del.className = "danger";
+  del.textContent = "Delete";
+  del.onclick = ()=>deleteClient(c.id);
+
+  item.append(title,details,qrBox,download,edit,toggle,del);
   box.appendChild(item);
  });
 }
 
 async function saveClient(){
- const business=document.getElementById("business").value.trim();
- const slug=document.getElementById("slug").value.trim().toLowerCase();
- const upi=document.getElementById("upi").value.trim();
- const status=document.getElementById("status");
+ const business = document.getElementById("business").value.trim();
+ const slug = document.getElementById("slug").value.trim().toLowerCase();
+ const upi = document.getElementById("upi").value.trim();
+ const status = document.getElementById("status");
 
  if(!business || !slug || !upi){
-  status.textContent="Please fill all fields.";
+  status.textContent = "Please fill all fields.";
   return;
  }
 
  if(!/^[a-z0-9-]+$/.test(slug)){
-  status.textContent="Use only lowercase letters, numbers and hyphens in link name.";
+  status.textContent = "Use lowercase letters, numbers and hyphens.";
   return;
  }
 
- const values={
+ const values = {
   business_name:business,
   slug:slug,
   upi_id:upi
  };
 
- const result=editingId
+ const result = editingId
   ? await db.from("clients").update(values).eq("id",editingId)
   : await db.from("clients").insert(values);
 
  if(result.error){
-  status.textContent="Error: "+result.error.message;
+  status.textContent = "Error: " + result.error.message;
   return;
  }
 
- status.textContent="Client saved successfully!";
+ status.textContent = "Client saved successfully!";
  resetForm();
- loadClients();
+ await loadClients();
 }
 
 function editClient(c){
- editingId=c.id;
- document.getElementById("business").value=c.business_name;
- document.getElementById("slug").value=c.slug;
- document.getElementById("upi").value=c.upi_id;
- document.getElementById("formTitle").textContent="Edit Client";
- document.getElementById("status").textContent="Editing "+c.business_name;
+ editingId = c.id;
+
+ document.getElementById("business").value = c.business_name;
+ document.getElementById("slug").value = c.slug;
+ document.getElementById("upi").value = c.upi_id;
+
+ document.getElementById("formTitle").textContent = "Edit Client";
+ document.getElementById("status").textContent = "Editing " + c.business_name;
+
  window.scrollTo({top:0,behavior:"smooth"});
 }
 
 function resetForm(){
- editingId=null;
- document.getElementById("business").value="";
- document.getElementById("slug").value="";
- document.getElementById("upi").value="";
- document.getElementById("formTitle").textContent="Add New Client";
+ editingId = null;
+
+ document.getElementById("business").value = "";
+ document.getElementById("slug").value = "";
+ document.getElementById("upi").value = "";
+
+ document.getElementById("formTitle").textContent = "Add New Client";
+ document.getElementById("status").textContent = "";
 }
 
 async function toggleClient(c){
- const {error}=await db.from("clients")
+ const {error} = await db.from("clients")
   .update({active:!c.active}).eq("id",c.id);
 
  if(error) alert(error.message);
- else loadClients();
+ else await loadClients();
 }
 
 async function deleteClient(id){
  if(!confirm("Delete this client permanently?")) return;
 
- const {error}=await db.from("clients").delete().eq("id",id);
+ const {error} = await db.from("clients")
+  .delete().eq("id",id);
 
  if(error) alert(error.message);
- else loadClients();
+ else await loadClients();
 }
-
-db.auth.onAuthStateChange(()=>{
- checkSession();
-});
 
 checkSession();
 </script>
 </body>
 </html>
-
