@@ -12,94 +12,131 @@
 body{
  margin:0;
  min-height:100vh;
- padding:20px;
+ padding:22px;
  display:grid;
  place-items:center;
- background:#090812;
+ background:#080611;
  color:white;
  font-family:Arial,sans-serif;
 }
 
 .card{
+ position:relative;
+ isolation:isolate;
+ overflow:hidden;
  width:100%;
  max-width:420px;
- padding:30px 24px;
- border:1px solid #39304e;
- border-radius:24px;
- background:linear-gradient(145deg,#191329,#0d0b16);
+ min-height:650px;
+ padding:35px 24px 25px;
+ border:1px solid var(--brand);
+ border-radius:26px;
+ background:#171024;
  text-align:center;
+ display:flex;
+ flex-direction:column;
+ justify-content:center;
+ box-shadow:0 0 35px color-mix(in srgb,var(--brand),transparent 65%);
 }
 
-.brandLogo{
- max-width:130px;
- max-height:100px;
- object-fit:contain;
- background:white;
- padding:8px;
- border-radius:12px;
- margin-bottom:15px;
+.photoBg{
+ position:absolute;
+ inset:0;
+ width:100%;
+ height:100%;
+ object-fit:cover;
+ z-index:-2;
+ display:none;
 }
 
-.businessName{
- font-size:25px;
- font-weight:800;
- margin-top:25px;
+.overlay{
+ position:absolute;
+ inset:0;
+ z-index:-1;
+ background:linear-gradient(
+  to bottom,
+  rgba(8,5,20,.48),
+  rgba(8,5,20,.78) 48%,
+  rgba(8,5,20,.96)
+ );
 }
 
-.muted{color:#aaa;font-size:14px}
+.business{
+ font-size:32px;
+ font-weight:900;
+ margin:20px 0 12px;
+ text-shadow:0 2px 12px #000;
+}
 
-h2{margin-top:35px}
+.tagline{
+ color:var(--brand);
+ font-size:13px;
+ letter-spacing:3px;
+ font-weight:bold;
+}
+
+.muted{
+ color:#ddd;
+ font-size:15px;
+ text-shadow:0 2px 8px #000;
+}
+
+h2{margin-top:45px}
 
 input{
  width:100%;
- padding:16px;
- margin:22px 0;
- border:1px solid var(--brand);
- border-radius:12px;
- background:#100d1b;
+ padding:17px;
+ margin:20px 0;
+ border:2px solid var(--brand);
+ border-radius:15px;
+ background:rgba(12,8,24,.78);
  color:white;
  font-size:20px;
  text-align:center;
+ outline:none;
 }
+
+input::placeholder{color:#bbb}
 
 button{
  width:100%;
- padding:16px;
+ padding:17px;
  border:0;
- border-radius:12px;
+ border-radius:15px;
  background:var(--brand);
  color:white;
  font-weight:bold;
- font-size:16px;
+ font-size:18px;
 }
 
 #status{
- margin-top:22px;
+ margin-top:25px;
  font-size:14px;
- color:#c4b5fd;
+ color:#d6baff;
+ text-shadow:0 2px 8px #000;
 }
 
 .footer{
- margin-top:30px;
- font-size:11px;
- color:#777;
+ margin-top:35px;
+ color:#ddd;
+ font-size:13px;
 }
+
+.footer strong{color:var(--brand)}
 </style>
 </head>
 
 <body>
 
-<div class="card">
+<div class="card" id="card">
 
- <div id="logoArea">
-  <div class="businessName">TAPORA</div>
- </div>
+ <img id="photoBg" class="photoBg" alt="Business background">
+ <div class="overlay"></div>
 
- <p class="muted">ONE TAP. EVERY PAYMENT.</p>
+ <div class="business" id="business">Loading business...</div>
 
- <h2 id="business">Loading business...</h2>
+ <p class="tagline">ONE TAP. EVERY PAYMENT.</p>
 
- <p class="muted">Enter payment amount</p>
+ <h2>Enter payment amount</h2>
 
  <input
   id="amount"
@@ -109,13 +146,13 @@ button{
   placeholder="₹ Enter amount"
  >
 
- <button id="continueBtn" onclick="testPayment()">
-  Continue
- </button>
+ <button onclick="testPayment()">Continue →</button>
 
  <p id="status">Connecting securely...</p>
 
- <div class="footer">Powered by TAPORA</div>
+ <div class="footer">
+  Powered by <strong>TAPORA</strong>
+ </div>
 
 </div>
 
@@ -132,9 +169,7 @@ const slug = new URLSearchParams(location.search)
 let client = null;
 
 async function loadClient(){
-
  try{
-
   const response = await fetch(
    SUPABASE_URL + "/rest/v1/rpc/get_client_by_slug",
    {
@@ -143,52 +178,30 @@ async function loadClient(){
      "Content-Type":"application/json",
      "apikey":SUPABASE_KEY
     },
-    body:JSON.stringify({
-     client_slug:slug
-    })
+    body:JSON.stringify({client_slug:slug})
    }
   );
 
-  if(!response.ok){
-   throw new Error("Database error");
-  }
+  if(!response.ok) throw new Error("Database error");
 
   const data = await response.json();
-
   client = Array.isArray(data) ? data[0] : data;
 
-  if(!client){
-   throw new Error("Client not found");
-  }
+  if(!client) throw new Error("Client not found");
 
   const colour = /^#[0-9a-fA-F]{6}$/.test(client.brand_color || "")
    ? client.brand_color
    : "#8b5cf6";
 
-  document.documentElement.style.setProperty(
-   "--brand",colour
-  );
+  document.documentElement.style.setProperty("--brand",colour);
 
   document.getElementById("business").textContent =
    client.business_name;
 
   if(client.logo_url){
-
-   const img = document.createElement("img");
-
-   img.src = client.logo_url;
-   img.alt = client.business_name + " logo";
-   img.className = "brandLogo";
-
-   document.getElementById("logoArea").replaceChildren(img);
-
-   img.onerror = ()=>{
-    document.getElementById("logoArea").textContent =
-     client.business_name;
-   };
-  }else{
-   document.getElementById("logoArea").textContent =
-    client.business_name;
+   const photo = document.getElementById("photoBg");
+   photo.src = client.logo_url;
+   photo.style.display = "block";
   }
 
   document.title = client.business_name + " | TAPORA";
@@ -197,26 +210,19 @@ async function loadClient(){
    "Business connected successfully!";
 
  }catch(error){
-
   client = null;
-
   document.getElementById("business").textContent =
    "Business unavailable";
-
   document.getElementById("status").textContent =
    error.message;
-
  }
 }
 
 function testPayment(){
-
- const amount = Number(
-  document.getElementById("amount").value
- );
+ const amount = Number(document.getElementById("amount").value);
 
  if(!client){
-  alert("Business is not connected yet.");
+  alert("Business is not connected.");
   return;
  }
 
@@ -227,7 +233,6 @@ function testPayment(){
 
  document.getElementById("status").textContent =
   "Test successful! UPI payment is not enabled yet.";
-
 }
 
 loadClient();
