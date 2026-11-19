@@ -36,7 +36,6 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 .analyticsValue{font-size:28px;font-weight:bold;color:#c4b5fd;margin-top:8px}
 .analyticsLabel{font-size:13px;color:#aaa}
 .searchInput{margin-top:12px}
-
 .quotaBox{background:#222231;border:1px solid #39394c;padding:18px;border-radius:14px;margin:14px 0}
 .quotaTop{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .quotaTitle{font-size:17px;font-weight:bold}
@@ -118,15 +117,9 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 
 <div class="card">
 <h2>All Clients</h2>
-
-<input
- id="clientSearch"
- class="searchInput"
- type="search"
- placeholder="Search business name or slug..."
- oninput="renderClients()"
->
-
+<input id="clientSearch" class="searchInput" type="search"
+placeholder="Search business name or slug..."
+oninput="renderClients()">
 <p class="muted" id="searchCount"></p>
 <div id="clients">Loading...</div>
 </div>
@@ -134,23 +127,18 @@ button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;backgro
 </div>
 
 <div id="usageTab" style="display:none">
-
 <div class="card">
 <h2>Manage Usage</h2>
 <p class="muted">TAPORA database and storage monitor</p>
-
 <div id="usageData">Press Refresh Usage to load data.</div>
-
 <button onclick="loadUsage()">Refresh Usage</button>
 <p class="muted" id="usageUpdated"></p>
-
 <p class="usageNote">
 Usage figures are estimates from this project's database and storage objects.
 Storage quota is shared across projects in your Supabase organization.
 For official quota and billing figures, check Supabase Dashboard → Usage.
 </p>
 </div>
-
 </div>
 
 </div>
@@ -168,6 +156,7 @@ const STORAGE_LIMIT = 1024 * 1024 * 1024;
 let editingId = null;
 let existingLogoUrl = null;
 let allClients = [];
+let usageAlertState = {};
 
 function formatBytes(bytes){
  bytes=Number(bytes)||0;
@@ -175,6 +164,36 @@ function formatBytes(bytes){
  const units=["Bytes","KB","MB","GB","TB"];
  const i=Math.floor(Math.log(bytes)/Math.log(1024));
  return (bytes/Math.pow(1024,i)).toFixed(2)+" "+units[i];
+}
+
+function checkUsageAlerts(databaseBytes,storageBytes){
+ const resources=[
+  {name:"Database",used:databaseBytes,limit:DATABASE_LIMIT},
+  {name:"Storage",used:storageBytes,limit:STORAGE_LIMIT}
+ ];
+
+ const messages=[];
+
+ resources.forEach(resource=>{
+  const percent=(resource.used/resource.limit)*100;
+  const level=percent>=90?"critical":percent>=80?"warning":"normal";
+
+  if(level!==usageAlertState[resource.name]){
+   if(level==="critical"){
+    messages.push("🔴 CRITICAL: "+resource.name+" usage is "+percent.toFixed(1)+"%!");
+   }else if(level==="warning"){
+    messages.push("🟡 WARNING: "+resource.name+" usage is "+percent.toFixed(1)+"%.");
+   }
+
+   usageAlertState[resource.name]=level;
+  }
+ });
+
+ if(messages.length){
+  setTimeout(()=>{
+   alert("TAPORA USAGE ALERT\n\n"+messages.join("\n\n"));
+  },300);
+ }
 }
 
 function showTab(tab){
@@ -256,7 +275,6 @@ function createQuotaCard(title,used,limit){
  status.textContent=statusText;
 
  wrapper.append(top,track,details,limitText,status);
-
  return wrapper;
 }
 
@@ -297,19 +315,16 @@ async function loadUsage(){
   return;
  }
 
- box.replaceChildren();
-
  const databaseBytes=Number(usage.database_bytes)||0;
  const storageBytes=Number(usage.storage_bytes)||0;
  const logoBytes=Number(usage.logo_storage_bytes)||0;
 
- box.appendChild(
-  createQuotaCard("Database Usage",databaseBytes,DATABASE_LIMIT)
- );
+ checkUsageAlerts(databaseBytes,storageBytes);
 
- box.appendChild(
-  createQuotaCard("Storage Usage (This Project)",storageBytes,STORAGE_LIMIT)
- );
+ box.replaceChildren();
+
+ box.appendChild(createQuotaCard("Database Usage",databaseBytes,DATABASE_LIMIT));
+ box.appendChild(createQuotaCard("Storage Usage (This Project)",storageBytes,STORAGE_LIMIT));
 
  const grid=document.createElement("div");
  grid.className="usageGrid";
@@ -323,7 +338,6 @@ async function loadUsage(){
  addUsageStat(grid,"Active Clients",Number(usage.active_clients)||0);
 
  box.appendChild(grid);
-
  updated.textContent="Last refreshed: "+new Date().toLocaleString();
 }
 
