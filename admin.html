@@ -11,52 +11,20 @@
 
 <style>
 *{box-sizing:border-box}
-body{
- margin:0;
- padding:20px;
- background:#09090f;
- color:white;
- font-family:Arial,sans-serif;
-}
+body{margin:0;padding:20px;background:#09090f;color:white;font-family:Arial,sans-serif}
 .container{max-width:850px;margin:auto}
 h1{color:#a78bfa}
-.card{
- background:#171722;
- border:1px solid #303044;
- border-radius:16px;
- padding:20px;
- margin:18px 0;
-}
-input{
- width:100%;
- padding:14px;
- margin:8px 0;
- border-radius:9px;
- border:1px solid #444;
- background:#101018;
- color:white;
-}
-button{
- padding:11px 16px;
- margin:5px 3px 5px 0;
- border:0;
- border-radius:8px;
- background:#8b5cf6;
- color:white;
- font-weight:bold;
-}
+.card{background:#171722;border:1px solid #303044;border-radius:16px;padding:20px;margin:18px 0}
+input{width:100%;padding:14px;margin:8px 0;border-radius:9px;border:1px solid #444;background:#101018;color:white}
+input[type="color"]{height:55px;padding:5px}
+button{padding:11px 16px;margin:5px 3px 5px 0;border:0;border-radius:8px;background:#8b5cf6;color:white;font-weight:bold}
 .secondary{background:#444}
 .danger{background:#dc3545}
-.client{
- background:#222231;
- padding:16px;
- margin:14px 0;
- border-radius:12px;
- overflow-wrap:anywhere;
-}
+.client{background:#222231;padding:16px;margin:14px 0;border-radius:12px;overflow-wrap:anywhere}
 .muted{color:#aaa;font-size:13px}
 #dashboard{display:none}
 #status{color:#c4b5fd}
+.logoPreview{max-width:120px;max-height:100px;object-fit:contain;background:white;padding:8px;border-radius:10px;margin:10px 0}
 </style>
 </head>
 
@@ -68,10 +36,8 @@ button{
 
 <div id="loginBox" class="card">
 <h2>Admin Login</h2>
-
 <input id="email" type="email" placeholder="Admin Email">
 <input id="password" type="password" placeholder="Password">
-
 <button onclick="login()">Login</button>
 <p id="loginStatus"></p>
 </div>
@@ -91,6 +57,13 @@ button{
 <input id="slug" placeholder="Unique Link Name (example: poojan)">
 <input id="upi" placeholder="UPI ID">
 
+<h3>Client Logo</h3>
+<input id="logoFile" type="file" accept="image/*">
+<img id="logoPreview" class="logoPreview" style="display:none">
+
+<h3>Brand Colour</h3>
+<input id="brandColor" type="color" value="#8b5cf6">
+
 <p id="status"></p>
 
 <button onclick="saveClient()">Save Client</button>
@@ -107,36 +80,29 @@ button{
 
 <script>
 const SUPABASE_URL = "https://tmiebdqmygdfdgkvswta.supabase.co";
-
 const SUPABASE_KEY = "sb_publishable_t3KMHuJVyAJbJtDQV3bLIA_SSjpFGd4";
 
-const db = window.supabase.createClient(
- SUPABASE_URL,
- SUPABASE_KEY
-);
+const db = window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 let editingId = null;
+let existingLogoUrl = null;
 
 async function login(){
- const email = document.getElementById("email").value.trim();
- const password = document.getElementById("password").value;
- const status = document.getElementById("loginStatus");
+ const email=document.getElementById("email").value.trim();
+ const password=document.getElementById("password").value;
+ const status=document.getElementById("loginStatus");
 
- status.textContent = "Logging in...";
+ status.textContent="Logging in...";
 
- const {data,error} = await db.auth.signInWithPassword({
-  email,
-  password
- });
+ const {error}=await db.auth.signInWithPassword({email,password});
 
  if(error){
-  status.textContent = error.message;
+  status.textContent=error.message;
   return;
  }
 
- document.getElementById("loginBox").style.display = "none";
- document.getElementById("dashboard").style.display = "block";
-
+ document.getElementById("loginBox").style.display="none";
+ document.getElementById("dashboard").style.display="block";
  await loadClients();
 }
 
@@ -146,52 +112,91 @@ async function logout(){
 }
 
 async function checkSession(){
- const {data} = await db.auth.getSession();
+ const {data}=await db.auth.getSession();
 
  if(data.session){
-  document.getElementById("loginBox").style.display = "none";
-  document.getElementById("dashboard").style.display = "block";
+  document.getElementById("loginBox").style.display="none";
+  document.getElementById("dashboard").style.display="block";
   await loadClients();
  }
 }
 
-async function loadClients(){
- const box = document.getElementById("clients");
- box.textContent = "Loading...";
+document.getElementById("logoFile").addEventListener("change",function(){
+ const file=this.files[0];
+ const preview=document.getElementById("logoPreview");
 
- const {data,error} = await db.from("clients")
-  .select("id,business_name,slug,upi_id,active")
+ if(!file){
+  preview.style.display=existingLogoUrl?"block":"none";
+  preview.src=existingLogoUrl||"";
+  return;
+ }
+
+ if(!file.type.startsWith("image/")){
+  alert("Please select an image.");
+  this.value="";
+  return;
+ }
+
+ if(file.size>2*1024*1024){
+  alert("Logo must be smaller than 2 MB.");
+  this.value="";
+  return;
+ }
+
+ preview.src=URL.createObjectURL(file);
+ preview.style.display="block";
+});
+
+async function loadClients(){
+ const box=document.getElementById("clients");
+ box.textContent="Loading...";
+
+ const {data,error}=await db.from("clients")
+  .select("id,business_name,slug,upi_id,active,logo_url,brand_color")
   .order("created_at",{ascending:false});
 
  if(error){
-  box.textContent = "Error: " + error.message;
+  box.textContent="Error: "+error.message;
   return;
  }
 
  box.replaceChildren();
 
  if(!data.length){
-  box.textContent = "No clients added yet.";
+  box.textContent="No clients added yet.";
   return;
  }
 
  data.forEach(c=>{
-  const item = document.createElement("div");
-  item.className = "client";
+  const item=document.createElement("div");
+  item.className="client";
 
-  const title = document.createElement("strong");
-  title.textContent = c.business_name;
+  const title=document.createElement("strong");
+  title.textContent=c.business_name;
+  title.style.color=c.brand_color||"#8b5cf6";
 
-  const link = "https://tapora.poojanmadhvani1.workers.dev/pay.html?client=" + encodeURIComponent(c.slug);
+  if(c.logo_url){
+   const logo=document.createElement("img");
+   logo.src=c.logo_url;
+   logo.className="logoPreview";
+   logo.alt=c.business_name+" logo";
+   item.appendChild(logo);
+  }
 
-  const details = document.createElement("p");
-  details.className = "muted";
-  details.textContent = "Link: " + link + " | UPI: " + c.upi_id + " | " + (c.active ? "Active" : "Inactive");
+  const link="https://tapora.poojanmadhvani1.workers.dev/pay.html?client="+encodeURIComponent(c.slug);
 
-  const qrBox = document.createElement("div");
-  qrBox.style.cssText = "background:white;padding:12px;width:184px;margin:12px 0;border-radius:12px";
+  const details=document.createElement("p");
+  details.className="muted";
+  details.textContent="Link: "+link+" | UPI: "+c.upi_id+" | "+(c.active?"Active":"Inactive");
 
-  const qr = document.createElement("div");
+  const colour=document.createElement("p");
+  colour.className="muted";
+  colour.textContent="Brand colour: "+(c.brand_color||"#8b5cf6");
+
+  const qrBox=document.createElement("div");
+  qrBox.style.cssText="background:white;padding:12px;width:184px;margin:12px 0;border-radius:12px";
+
+  const qr=document.createElement("div");
   qrBox.appendChild(qr);
 
   new QRCode(qr,{
@@ -203,117 +208,157 @@ async function loadClients(){
    correctLevel:QRCode.CorrectLevel.H
   });
 
-  const download = document.createElement("button");
-  download.textContent = "Download QR";
-
-  download.onclick = ()=>{
-   const canvas = qr.querySelector("canvas");
-
-   if(!canvas){
-    alert("QR not ready");
-    return;
-   }
-
-   const a = document.createElement("a");
-   a.download = c.slug + "-tapora-qr.png";
-   a.href = canvas.toDataURL("image/png");
+  const download=document.createElement("button");
+  download.textContent="Download QR";
+  download.onclick=()=>{
+   const canvas=qr.querySelector("canvas");
+   if(!canvas){alert("QR not ready");return;}
+   const a=document.createElement("a");
+   a.download=c.slug+"-tapora-qr.png";
+   a.href=canvas.toDataURL("image/png");
    a.click();
   };
 
-  const edit = document.createElement("button");
-  edit.textContent = "Edit";
-  edit.onclick = ()=>editClient(c);
+  const edit=document.createElement("button");
+  edit.textContent="Edit";
+  edit.onclick=()=>editClient(c);
 
-  const toggle = document.createElement("button");
-  toggle.className = "secondary";
-  toggle.textContent = c.active ? "Deactivate" : "Activate";
-  toggle.onclick = ()=>toggleClient(c);
+  const toggle=document.createElement("button");
+  toggle.className="secondary";
+  toggle.textContent=c.active?"Deactivate":"Activate";
+  toggle.onclick=()=>toggleClient(c);
 
-  const del = document.createElement("button");
-  del.className = "danger";
-  del.textContent = "Delete";
-  del.onclick = ()=>deleteClient(c.id);
+  const del=document.createElement("button");
+  del.className="danger";
+  del.textContent="Delete";
+  del.onclick=()=>deleteClient(c.id);
 
-  item.append(title,details,qrBox,download,edit,toggle,del);
+  item.append(title,details,colour,qrBox,download,edit,toggle,del);
   box.appendChild(item);
  });
 }
 
 async function saveClient(){
- const business = document.getElementById("business").value.trim();
- const slug = document.getElementById("slug").value.trim().toLowerCase();
- const upi = document.getElementById("upi").value.trim();
- const status = document.getElementById("status");
+ const business=document.getElementById("business").value.trim();
+ const slug=document.getElementById("slug").value.trim().toLowerCase();
+ const upi=document.getElementById("upi").value.trim();
+ const file=document.getElementById("logoFile").files[0];
+ const colour=document.getElementById("brandColor").value;
+ const status=document.getElementById("status");
 
- if(!business || !slug || !upi){
-  status.textContent = "Please fill all fields.";
+ if(!business||!slug||!upi){
+  status.textContent="Please fill all fields.";
   return;
  }
 
  if(!/^[a-z0-9-]+$/.test(slug)){
-  status.textContent = "Use lowercase letters, numbers and hyphens.";
+  status.textContent="Use lowercase letters, numbers and hyphens.";
   return;
  }
 
- const values = {
+ if(file && (!file.type.startsWith("image/") || file.size>2*1024*1024)){
+  status.textContent="Choose an image smaller than 2 MB.";
+  return;
+ }
+
+ status.textContent="Saving client...";
+
+ let logoUrl=existingLogoUrl;
+
+ if(file){
+  const ext=(file.name.split(".").pop()||"png").toLowerCase();
+  const path=slug+"/"+Date.now()+"."+ext;
+
+  const {error:uploadError}=await db.storage
+   .from("client-logos")
+   .upload(path,file,{
+    contentType:file.type,
+    upsert:false
+   });
+
+  if(uploadError){
+   status.textContent="Logo upload error: "+uploadError.message;
+   return;
+  }
+
+  const {data:publicData}=db.storage
+   .from("client-logos")
+   .getPublicUrl(path);
+
+  logoUrl=publicData.publicUrl;
+ }
+
+ const values={
   business_name:business,
   slug:slug,
-  upi_id:upi
+  upi_id:upi,
+  logo_url:logoUrl,
+  brand_color:colour
  };
 
- const result = editingId
+ const result=editingId
   ? await db.from("clients").update(values).eq("id",editingId)
   : await db.from("clients").insert(values);
 
  if(result.error){
-  status.textContent = "Error: " + result.error.message;
+  status.textContent="Error: "+result.error.message;
   return;
  }
 
- status.textContent = "Client saved successfully!";
+ status.textContent="Client saved successfully!";
  resetForm();
  await loadClients();
 }
 
 function editClient(c){
- editingId = c.id;
+ editingId=c.id;
+ existingLogoUrl=c.logo_url;
 
- document.getElementById("business").value = c.business_name;
- document.getElementById("slug").value = c.slug;
- document.getElementById("upi").value = c.upi_id;
+ document.getElementById("business").value=c.business_name;
+ document.getElementById("slug").value=c.slug;
+ document.getElementById("upi").value=c.upi_id;
+ document.getElementById("brandColor").value=c.brand_color||"#8b5cf6";
+ document.getElementById("logoFile").value="";
 
- document.getElementById("formTitle").textContent = "Edit Client";
- document.getElementById("status").textContent = "Editing " + c.business_name;
+ const preview=document.getElementById("logoPreview");
+ preview.src=c.logo_url||"";
+ preview.style.display=c.logo_url?"block":"none";
+
+ document.getElementById("formTitle").textContent="Edit Client";
+ document.getElementById("status").textContent="Editing "+c.business_name;
 
  window.scrollTo({top:0,behavior:"smooth"});
 }
 
 function resetForm(){
- editingId = null;
+ editingId=null;
+ existingLogoUrl=null;
 
- document.getElementById("business").value = "";
- document.getElementById("slug").value = "";
- document.getElementById("upi").value = "";
-
- document.getElementById("formTitle").textContent = "Add New Client";
- document.getElementById("status").textContent = "";
+ document.getElementById("business").value="";
+ document.getElementById("slug").value="";
+ document.getElementById("upi").value="";
+ document.getElementById("logoFile").value="";
+ document.getElementById("brandColor").value="#8b5cf6";
+ document.getElementById("logoPreview").src="";
+ document.getElementById("logoPreview").style.display="none";
+ document.getElementById("formTitle").textContent="Add New Client";
+ document.getElementById("status").textContent="";
 }
 
 async function toggleClient(c){
- const {error} = await db.from("clients")
+ const {error}=await db.from("clients")
   .update({active:!c.active}).eq("id",c.id);
 
- if(error) alert(error.message);
+ if(error)alert(error.message);
  else await loadClients();
 }
 
 async function deleteClient(id){
- if(!confirm("Delete this client permanently?")) return;
+ if(!confirm("Delete this client permanently?"))return;
 
- const {error} = await db.from("clients")
-  .delete().eq("id",id);
+ const {error}=await db.from("clients").delete().eq("id",id);
 
- if(error) alert(error.message);
+ if(error)alert(error.message);
  else await loadClients();
 }
 
