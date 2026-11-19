@@ -3,59 +3,113 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TAPORA | Payment</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TAPORA Payment</title>
 <style>
 *{box-sizing:border-box}
 body{
- margin:0;min-height:100vh;background:#090812;color:white;
- font-family:Arial,sans-serif;display:flex;align-items:center;
- justify-content:center;padding:20px
+ margin:0;min-height:100vh;padding:20px;
+ display:grid;place-items:center;
+ background:#090812;color:white;font-family:Arial
 }
 .card{
  width:100%;max-width:420px;padding:30px 24px;
- border:1px solid #37304e;border-radius:25px;
+ border:1px solid #39304e;border-radius:24px;
  background:linear-gradient(145deg,#191329,#0d0b16);
- text-align:center;box-shadow:0 20px 70px #0008
+ text-align:center
 }
 .logo{font-size:30px;font-weight:900;letter-spacing:3px}
 .logo span{color:#a78bfa}
-.tag{color:#aaa;font-size:13px;margin-top:8px}
-h2{margin:35px 0 8px;font-size:23px}
-.sub{color:#aaa;font-size:14px}
+.muted{color:#aaa;font-size:14px}
+h2{margin-top:35px}
 input{
- width:100%;margin:25px 0 15px;padding:17px;
- border:1px solid #51436f;border-radius:13px;
- background:#100d1b;color:white;font-size:22px;text-align:center;
- outline:none
+ width:100%;padding:16px;margin:22px 0;
+ border:1px solid #51436f;border-radius:12px;
+ background:#100d1b;color:white;font-size:20px;
+ text-align:center
 }
 button{
- width:100%;padding:17px;border:0;border-radius:13px;
- background:linear-gradient(90deg,#7c3aed,#a855f7);
- color:white;font-size:16px;font-weight:bold
+ width:100%;padding:16px;border:0;border-radius:12px;
+ background:#8b5cf6;color:white;font-weight:bold;font-size:16px
 }
-.note{font-size:12px;color:#888;margin-top:22px}
+#status{margin-top:22px;font-size:14px;color:#c4b5fd}
 </style>
 </head>
 <body>
 <div class="card">
  <div class="logo">TAP<span>ORA</span></div>
- <div class="tag">ONE TAP. EVERY PAYMENT.</div>
- <h2>Make a Payment</h2>
- <div class="sub">Enter the amount you want to pay</div>
- <input id="amount" type="number" min="1" step="0.01" placeholder="₹ Enter amount">
- <button onclick="pay()">Continue to Pay →</button>
- <div class="note">Secure UPI payment experience<br>Powered by TAPORA</div>
+ <p class="muted">ONE TAP. EVERY PAYMENT.</p>
+ <h2 id="business">Loading business...</h2>
+ <p class="muted">Enter payment amount</p>
+ <input id="amount" type="number" min="1" step="0.01"
+ placeholder="₹ Enter amount">
+ <button onclick="testPayment()">Continue</button>
+ <p id="status">Connecting securely...</p>
 </div>
+
 <script>
-function pay(){
- const amount=Number(document.getElementById('amount').value);
- if(!Number.isFinite(amount)||amount<=0){
-  alert('Please enter a valid amount');
+const SUPABASE_URL =
+"https://tmiebdqmygdfdgkvswta.supabase.co";
+
+const SUPABASE_KEY =
+"sb_publishable_t3KMHuJVyAJbJtDQV3bLIA_SSjpFGd4";
+
+const slug = new URLSearchParams(location.search)
+.get("client") || "poojan";
+
+let client = null;
+
+async function loadClient(){
+ try{
+  const response = await fetch(
+   SUPABASE_URL + "/rest/v1/rpc/get_client_by_slug",
+   {
+    method:"POST",
+    headers:{
+     "Content-Type":"application/json",
+     "apikey":SUPABASE_KEY
+    },
+    body:JSON.stringify({client_slug:slug})
+   }
+  );
+
+  if(!response.ok) throw new Error("Database error");
+
+  const data = await response.json();
+  client = Array.isArray(data) ? data[0] : data;
+
+  if(!client) throw new Error("Client not found");
+
+  document.getElementById("business").textContent =
+   client.business_name;
+
+  document.getElementById("status").textContent =
+   "Business connected successfully!";
+ }catch(error){
+  document.getElementById("business").textContent =
+   "Business unavailable";
+  document.getElementById("status").textContent =
+   error.message;
+ }
+}
+
+function testPayment(){
+ const amount = Number(document.getElementById("amount").value);
+
+ if(!client){
+  alert("Business is not connected yet.");
   return;
  }
- alert('Payment setup is not connected yet. No money has been charged.');
+ if(!Number.isFinite(amount) || amount <= 0){
+  alert("Enter a valid amount.");
+  return;
+ }
+
+ document.getElementById("status").textContent =
+  "Test successful! UPI payment is not enabled yet.";
 }
+
+loadClient();
 </script>
 </body>
 </html>
